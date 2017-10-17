@@ -126,7 +126,7 @@ in_2_out_map() ->
 
 convert_config() ->
   [
-    {default,
+    {list_copy,
       [
         {?TXN,
           [
@@ -137,6 +137,15 @@ convert_config() ->
           [
             {encoding, {fun t2/0, []}}
 
+          ]
+        }
+      ]
+    },
+    {default,
+      [
+        {?TXN,
+          [
+            {version, {fun t1/1, [version]}}
           ]
         }
       ]
@@ -156,6 +165,11 @@ convert_test() ->
 
   ProtocolResult = pg_model:set(?MODULE, Protocol,
     [{version, <<"5.0.0.3.3">>}, {encoding, <<"GBK">>}]),
-  ?assertEqual(ProtocolResult, pg_protocol:convert(?MODULE, [Protocol, Protocol], default)),
+  ?assertEqual(ProtocolResult, pg_protocol:convert(?MODULE, [Protocol, Protocol], list_copy)),
+
+  ProtocolResult2 = pg_model:set(?MODULE, Protocol, [{version, <<"5.0.0.3.3">>}]),
+  ?assertEqual(ProtocolResult2, pg_protocol:convert(?MODULE, Protocol)),
+  ?assertEqual(ProtocolResult2, pg_protocol:convert(?MODULE, Protocol, default)),
+  ?assertEqual(ProtocolResult2, pg_protocol:convert(?MODULE, [Protocol])),
   ok.
 

@@ -83,6 +83,9 @@ convert(MTo, MFromList) when is_atom(MTo), is_list(MFromList) ->
   MFromList :: [pg_model:pg_model()],
   ConfigItemName :: atom(),
   ModelNew :: pg_model:pg_model().
+
+convert(MTo, Model, ConfigItemName) when is_atom(MTo), is_tuple(Model), is_atom(ConfigItemName) ->
+  convert(MTo, [Model], ConfigItemName);
 convert(MTo, ModelList, ConfigItemName) when is_atom(MTo), is_list(ModelList), is_atom(ConfigItemName) ->
   ConvertRuleMap = MTo:convert_config(),
   RuleList = proplists:get_value(ConfigItemName, ConvertRuleMap),
