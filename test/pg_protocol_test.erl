@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 15. 十月 2017 21:08
 %%%-------------------------------------------------------------------
--module(t_pg_protocol).
+-module(pg_protocol_test).
 -author("simon").
 -include_lib("eunit/include/eunit.hrl").
 

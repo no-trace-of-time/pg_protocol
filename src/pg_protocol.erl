@@ -10,21 +10,27 @@
   out_2_in/2
   , in_2_out/2
   , in_2_out/3
+  , convert/2
+  , convert/3
 ]).
 
 -export([
-
+  pr_formatter/1
 ]).
 
--define(TEST_PROTOCOL, pg_test_utils:name(protocol)).
+-define(TEST_PROTOCOL, pg_protocol_t_protocol_up_resp_pay).
 
 %%====================================================================
 %% API functions
 %%====================================================================
+pr_formatter(_) ->
+  default.
+
+%%-----------------------------------------------------------------
 -spec out_2_in(M, PL) -> Model when
   M :: atom(),
   PL :: proplists:proplist(),
-  Model :: atom().
+  Model :: pg_model:pg_model().
 
 %% 用途：将外部数据转换为内部格式
 %% 实现：M： 可以得到对应的字段列表
@@ -59,6 +65,41 @@ in_2_out(M, Model) ->
 
 do_in_2_out(M, Model) when is_atom(M), is_tuple(Model) ->
   [in_2_out_one_field(M, Model, Field) || Field <- pg_model:fields(M)].
+
+
+%%----------------------------------------------
+-spec convert(MTo, MFrom) -> ModelNew when
+  MTo :: atom(),
+  MFrom :: pg_model:pg_model() | [pg_model:pg_model()],
+  ModelNew :: pg_model:pg_model().
+convert(MTo, MFrom) when is_atom(MTo), is_tuple(MFrom) ->
+  convert(MTo, [MFrom], default);
+convert(MTo, MFromList) when is_atom(MTo), is_list(MFromList) ->
+  convert(MTo, MFromList, default).
+
+
+-spec convert(MTo, MFromList, ConfigItemName) -> ModelNew when
+  MTo :: atom(),
+  MFromList :: [pg_model:pg_model()],
+  ConfigItemName :: atom(),
+  ModelNew :: pg_model:pg_model().
+convert(MTo, ModelList, ConfigItemName) when is_atom(MTo), is_list(ModelList), is_atom(ConfigItemName) ->
+  ConvertRuleMap = MTo:convert_config(),
+  RuleList = proplists:get_value(ConfigItemName, ConvertRuleMap),
+
+  true = length(ModelList) =:= length(RuleList),
+
+  FConvertOneModel =
+    fun(I, Acc) ->
+      {MFrom, Rule} = lists:nth(I, RuleList),
+      VL = do_convert(MFrom, Rule, lists:nth(I, ModelList)),
+      VL ++ Acc
+    end,
+
+  VL = lists:foldl(FConvertOneModel, [], lists:seq(1, length(ModelList))),
+
+
+  pg_model:new(MTo, VL).
 
 
 %%====================================================================
@@ -121,6 +162,93 @@ do_out_2_in_one_filed_test() ->
 
   ok.
 
+%%-------------------------------------------------------------------
+do_convert(MFrom, Rule, Model) when is_atom(MFrom), is_list(Rule), is_tuple(Model) ->
+  F =
+    fun(OpTuple, Acc) ->
+      do_convert_one_op(MFrom, Model, OpTuple, Acc)
+    end,
+  VL = lists:foldl(F, [], Rule),
+  VL.
+
+do_convert_test() ->
+  Protocol = pg_model:new(?TEST_PROTOCOL, [{encoding, {a, b, c}}]),
+
+  R1 = [
+    {t1, version}
+    , {t2, {static, 333}}
+    , {t3, {element, 3, encoding}}
+    , {t4, {fun t1/0, []}}
+    , {t5, {fun t3/1, [version]}}
+    , {t6, {tuple, [encoding, version]}}
+  ],
+  ?assertEqual(
+    lists:reverse([
+      {t1, <<"5.0.0">>}
+      , {t2, 333}
+      , {t3, c}
+      , {t4, <<"test">>}
+      , {t5, <<"5.0.0hello">>}
+      , {t6, {{a, b, c}, <<"5.0.0">>}}
+    ]),
+    do_convert(?TEST_PROTOCOL, R1, Protocol)),
+  ok.
+
+
+do_convert_one_op(M, Model, {KeyTo, KeyFrom}, AccIn)
+  when is_atom(M), is_atom(KeyTo), is_atom(KeyFrom), is_list(AccIn) ->
+  Value = pg_model:get(M, Model, KeyFrom),
+  [{KeyTo, Value} | AccIn];
+do_convert_one_op(M, _Model, {KeyTo, {static, Value}}, AccIn)
+  when is_atom(M), is_atom(KeyTo), is_list(AccIn) ->
+  [{KeyTo, Value} | AccIn];
+do_convert_one_op(M, Model, {KeyTo, {element, N, KeyFrom}}, AccIn)
+  when is_atom(M), is_atom(KeyTo), is_list(AccIn) ->
+  Value = pg_model:get(M, Model, KeyFrom),
+  [{KeyTo, element(N, Value)} | AccIn];
+do_convert_one_op(M, _Model, {KeyTo, {Fun, []}}, AccIn)
+  when is_atom(M), is_atom(KeyTo), is_function(Fun), is_list(AccIn) ->
+  Value = Fun(),
+  [{KeyTo, Value} | AccIn];
+do_convert_one_op(M, Model, {KeyTo, {Fun, KeyFromList}}, AccIn)
+  when is_atom(M), is_atom(KeyTo), is_function(Fun), is_list(KeyFromList), is_list(AccIn) ->
+  VL = [pg_model:get(M, Model, Key) || Key <- KeyFromList],
+  Value = apply(Fun, VL),
+  [{KeyTo, Value} | AccIn];
+do_convert_one_op(M, Model, {KeyTo, {tuple, KeyFromList}}, AccIn)
+  when is_atom(M), is_atom(KeyTo), is_list(KeyFromList), is_list(AccIn) ->
+  VL = [pg_model:get(M, Model, Key) || Key <- KeyFromList],
+  [{KeyTo, list_to_tuple(VL)} | AccIn].
+
+do_convert_one_op_test() ->
+  Protocol = pg_model:new(?TEST_PROTOCOL, [{encoding, {a, b, c}}]),
+  ?assertEqual([{test, <<"5.0.0">>}, aa],
+    do_convert_one_op(?TEST_PROTOCOL, Protocol, {test, version}, [aa])),
+
+  ?assertEqual([{test, 444}, aa],
+    do_convert_one_op(?TEST_PROTOCOL, Protocol, {test, {static, 444}}, [aa])),
+
+  ?assertEqual([{test, a}, aa],
+    do_convert_one_op(?TEST_PROTOCOL, Protocol, {test, {element, 1, encoding}}, [aa])),
+  ?assertEqual([{test, c}, aa],
+    do_convert_one_op(?TEST_PROTOCOL, Protocol, {test, {element, 3, encoding}}, [aa])),
+
+  ?assertEqual([{test, <<"test">>}, aa],
+    do_convert_one_op(?TEST_PROTOCOL, Protocol, {test, {fun t1/0, []}}, [aa])),
+
+  ?assertEqual([{test, <<"5.0.0hello">>}, aa],
+    do_convert_one_op(?TEST_PROTOCOL, Protocol, {test, {fun t3/1, [version]}}, [aa])),
+
+  ?assertEqual([{test, {<<"5.0.0">>, {a, b, c}}}, aa],
+    do_convert_one_op(?TEST_PROTOCOL, Protocol, {test, {tuple, [version, encoding]}}, [aa])),
+  ok.
+
+t1() ->
+  <<"test">>.
+
+t3(V) ->
+  <<V/binary, "hello">>.
+
 %%====================================================================
 %% Internal Test functions
 %%====================================================================
@@ -158,3 +286,5 @@ do_out_2_model_one_field_test() ->
   ?assertEqual(do_out_2_in_one_field({[<<"accessType">>, <<"bizType">>], tuple}, PL), {<<"0">>, <<"000201">>}),
 
   ok.
+
+
