@@ -109,7 +109,7 @@ convert(MTo, ModelList, ConfigItemName) when is_atom(MTo), is_list(ModelList), i
 %% Internal functions
 %%====================================================================
 out_2_in_one_field(Field, {Acc, Model2OutMap, PL}) when is_atom(Field), is_list(Acc), is_map(Model2OutMap) ->
-  Config = maps:get(Field, Model2OutMap),
+  Config = maps:get(Field, Model2OutMap, undefined),
 
 %%  lager:debug("Config=~p,Field=~p", [Config, Field]),
 
@@ -135,7 +135,11 @@ do_out_2_in_one_field({KeyInPL, integer}, PL) when is_binary(KeyInPL), is_list(P
       binary_to_integer(Value)
   end;
 do_out_2_in_one_field(KeyInPL, PL) when is_binary(KeyInPL), is_list(PL) ->
-  proplists:get_value(KeyInPL, PL).
+  proplists:get_value(KeyInPL, PL);
+do_out_2_in_one_field(undefined, PL) when is_list(PL) ->
+  %% protocol model key is not in in_2_out_map/0
+  %% set as undefined
+  undefined.
 
 
 %%----------------------------------------------------------
@@ -284,6 +288,7 @@ do_out_2_model_one_field_test() ->
     , {<<"accNo">>, <<"95555">>}
   ],
   ?assertEqual(do_out_2_in_one_field(<<"accessType">>, PL), <<"0">>),
+  ?assertEqual(do_out_2_in_one_field(undefined, PL), undefined),
   ?assertEqual(do_out_2_in_one_field({<<"accessType">>, integer}, PL), 0),
   ?assertEqual(do_out_2_in_one_field({[<<"accessType">>], tuple}, PL), {<<"0">>}),
   ?assertEqual(do_out_2_in_one_field({[<<"accessType">>, <<"bizType">>], tuple}, PL), {<<"0">>, <<"000201">>}),

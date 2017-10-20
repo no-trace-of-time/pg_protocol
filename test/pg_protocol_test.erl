@@ -70,6 +70,16 @@ out_2_in_test() ->
   ?assertEqual(ModelUpRespPay, ModelExpected),
   ok.
 
+out_2_in_field_undefined_test() ->
+  PL = postvals(),
+  M = pg_protocol_t_protocol_up_resp_pay_field_undefined,
+  P = pg_protocol:out_2_in(M, PL),
+
+  %% reqReserved field is not defined in in_2_out_map
+  %% so ,it remains default value
+  ?assertEqual(<<"reqReserved">>, pg_model:get(M, P, reqReserved)),
+  ok.
+
 %%--------------------------------------------------------------------
 
 in_2_out_test() ->
