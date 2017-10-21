@@ -2,8 +2,30 @@
 -include_lib("eunit/include/eunit.hrl").
 -behavior(pg_model).
 
+-type rule_tag() :: atom().
+-type from_model_name() :: atom().
+-type result_key() :: atom().
+-type from_key() :: atom().
+-type convert_action() :: from_key()
+| {static, any()}
+| {element, non_neg_integer(), from_key()}
+| {fun(), []}
+| {fun(), [from_key()]}
+| {tuple, [from_key()]}.
+-type op_step() :: {result_key(), convert_action()}.
+-type op_steps() :: [op_step()].
+-type convert_op() :: {from_model_name(), op_steps()}.
+-type convert_ops() :: [convert_op()].
+-type convert_rule() :: {rule_tag(), convert_ops()}.
+-type convert_rules() :: [convert_rule()].
+
+-export_type([
+  convert_rules/0
+]).
+
 %% callbacks
 -callback in_2_out_map() -> map().
+-callback convert_config() -> convert_rules().
 
 %% API exports
 -export([
