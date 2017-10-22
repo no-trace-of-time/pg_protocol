@@ -9,7 +9,9 @@
     {included_applications,
       [pg_model
       ]},
-    {env, []},
+    {env, [
+      {debug_convert_config, false}
+    ]},
     {modules, []},
 
     {maintainers, []},

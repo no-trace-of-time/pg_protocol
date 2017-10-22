@@ -165,6 +165,7 @@ convert_test() ->
 
   ProtocolResult = pg_model:set(?MODULE, Protocol,
     [{version, <<"5.0.0.3.3">>}, {encoding, <<"GBK">>}]),
+  lager:start(),
   ?assertEqual(ProtocolResult, pg_protocol:convert(?MODULE, [Protocol, Protocol], list_copy)),
 
   ProtocolResult2 = pg_model:set(?MODULE, Protocol, [{version, <<"5.0.0.3.3">>}]),

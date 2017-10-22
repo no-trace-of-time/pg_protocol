@@ -111,13 +111,22 @@ convert(MTo, Model, ConfigItemName) when is_atom(MTo), is_tuple(Model), is_atom(
 convert(MTo, ModelList, ConfigItemName) when is_atom(MTo), is_list(ModelList), is_atom(ConfigItemName) ->
   ConvertRuleMap = MTo:convert_config(),
   RuleList = proplists:get_value(ConfigItemName, ConvertRuleMap),
+  xfutils:cond_lager(pg_protocol, debug_convert_config, error, "RuleList = ~p", [RuleList]),
+  xfutils:cond_lager(pg_protocol, debug_convert_config_error, "ModelList=~p", [ModelList]),
 
   true = length(ModelList) =:= length(RuleList),
 
   FConvertOneModel =
     fun(I, Acc) ->
-      {MFrom, Rule} = lists:nth(I, RuleList),
-      VL = do_convert(MFrom, Rule, lists:nth(I, ModelList)),
+      {MFromUse, MModelUse, RuleUse} =
+        case lists:nth(I, RuleList) of
+          {MFrom, MModel, Rule} ->
+            {MFrom, MModel, Rule};
+          {MModel, Rule} ->
+            %% default pg_model
+            {pg_model, MModel, Rule}
+        end,
+      VL = do_convert(MFromUse, MModelUse, RuleUse, lists:nth(I, ModelList)),
       VL ++ Acc
     end,
 
@@ -192,10 +201,10 @@ do_out_2_in_one_filed_test() ->
   ok.
 
 %%-------------------------------------------------------------------
-do_convert(MFrom, Rule, Model) when is_atom(MFrom), is_list(Rule), is_tuple(Model) ->
+do_convert(MFrom, MModel, Rule, Model) when is_atom(MFrom), is_atom(MModel), is_list(Rule), is_tuple(Model) ->
   F =
     fun(OpTuple, Acc) ->
-      do_convert_one_op(MFrom, Model, OpTuple, Acc)
+      do_convert_one_op(MFrom, MModel, Model, OpTuple, Acc)
     end,
   VL = lists:foldl(F, [], Rule),
   VL.
@@ -220,56 +229,56 @@ do_convert_test() ->
       , {t5, <<"5.0.0hello">>}
       , {t6, {{a, b, c}, <<"5.0.0">>}}
     ]),
-    do_convert(?TEST_PROTOCOL, R1, Protocol)),
+    do_convert(pg_model, ?TEST_PROTOCOL, R1, Protocol)),
   ok.
 
 
-do_convert_one_op(M, Model, {KeyTo, KeyFrom}, AccIn)
+do_convert_one_op(M, MModel, Model, {KeyTo, KeyFrom}, AccIn)
   when is_atom(M), is_atom(KeyTo), is_atom(KeyFrom), is_list(AccIn) ->
-  Value = pg_model:get(M, Model, KeyFrom),
+  Value = M:get(MModel, Model, KeyFrom),
   [{KeyTo, Value} | AccIn];
-do_convert_one_op(M, _Model, {KeyTo, {static, Value}}, AccIn)
+do_convert_one_op(M, _, _Model, {KeyTo, {static, Value}}, AccIn)
   when is_atom(M), is_atom(KeyTo), is_list(AccIn) ->
   [{KeyTo, Value} | AccIn];
-do_convert_one_op(M, Model, {KeyTo, {element, N, KeyFrom}}, AccIn)
+do_convert_one_op(M, MModel, Model, {KeyTo, {element, N, KeyFrom}}, AccIn)
   when is_atom(M), is_atom(KeyTo), is_list(AccIn) ->
-  Value = pg_model:get(M, Model, KeyFrom),
+  Value = M:get(MModel, Model, KeyFrom),
   [{KeyTo, element(N, Value)} | AccIn];
-do_convert_one_op(M, _Model, {KeyTo, {Fun, []}}, AccIn)
+do_convert_one_op(M, _, _Model, {KeyTo, {Fun, []}}, AccIn)
   when is_atom(M), is_atom(KeyTo), is_function(Fun), is_list(AccIn) ->
   Value = Fun(),
   [{KeyTo, Value} | AccIn];
-do_convert_one_op(M, Model, {KeyTo, {Fun, KeyFromList}}, AccIn)
+do_convert_one_op(M, MModel, Model, {KeyTo, {Fun, KeyFromList}}, AccIn)
   when is_atom(M), is_atom(KeyTo), is_function(Fun), is_list(KeyFromList), is_list(AccIn) ->
-  VL = [pg_model:get(M, Model, Key) || Key <- KeyFromList],
+  VL = [M:get(MModel, Model, Key) || Key <- KeyFromList],
   Value = apply(Fun, VL),
   [{KeyTo, Value} | AccIn];
-do_convert_one_op(M, Model, {KeyTo, {tuple, KeyFromList}}, AccIn)
+do_convert_one_op(M, MModel, Model, {KeyTo, {tuple, KeyFromList}}, AccIn)
   when is_atom(M), is_atom(KeyTo), is_list(KeyFromList), is_list(AccIn) ->
-  VL = [pg_model:get(M, Model, Key) || Key <- KeyFromList],
+  VL = [M:get(MModel, Model, Key) || Key <- KeyFromList],
   [{KeyTo, list_to_tuple(VL)} | AccIn].
 
 do_convert_one_op_test() ->
   Protocol = pg_model:new(?TEST_PROTOCOL, [{encoding, {a, b, c}}]),
   ?assertEqual([{test, <<"5.0.0">>}, aa],
-    do_convert_one_op(?TEST_PROTOCOL, Protocol, {test, version}, [aa])),
+    do_convert_one_op(pg_model,?TEST_PROTOCOL, Protocol, {test, version}, [aa])),
 
   ?assertEqual([{test, 444}, aa],
-    do_convert_one_op(?TEST_PROTOCOL, Protocol, {test, {static, 444}}, [aa])),
+    do_convert_one_op(pg_model,?TEST_PROTOCOL, Protocol, {test, {static, 444}}, [aa])),
 
   ?assertEqual([{test, a}, aa],
-    do_convert_one_op(?TEST_PROTOCOL, Protocol, {test, {element, 1, encoding}}, [aa])),
+    do_convert_one_op(pg_model,?TEST_PROTOCOL, Protocol, {test, {element, 1, encoding}}, [aa])),
   ?assertEqual([{test, c}, aa],
-    do_convert_one_op(?TEST_PROTOCOL, Protocol, {test, {element, 3, encoding}}, [aa])),
+    do_convert_one_op(pg_model,?TEST_PROTOCOL, Protocol, {test, {element, 3, encoding}}, [aa])),
 
   ?assertEqual([{test, <<"test">>}, aa],
-    do_convert_one_op(?TEST_PROTOCOL, Protocol, {test, {fun t1/0, []}}, [aa])),
+    do_convert_one_op(pg_model,?TEST_PROTOCOL, Protocol, {test, {fun t1/0, []}}, [aa])),
 
   ?assertEqual([{test, <<"5.0.0hello">>}, aa],
-    do_convert_one_op(?TEST_PROTOCOL, Protocol, {test, {fun t3/1, [version]}}, [aa])),
+    do_convert_one_op(pg_model,?TEST_PROTOCOL, Protocol, {test, {fun t3/1, [version]}}, [aa])),
 
   ?assertEqual([{test, {<<"5.0.0">>, {a, b, c}}}, aa],
-    do_convert_one_op(?TEST_PROTOCOL, Protocol, {test, {tuple, [version, encoding]}}, [aa])),
+    do_convert_one_op(pg_model,?TEST_PROTOCOL, Protocol, {test, {tuple, [version, encoding]}}, [aa])),
   ok.
 
 t1() ->
