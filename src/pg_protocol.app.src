@@ -7,10 +7,13 @@
         stdlib
       ]},
     {included_applications,
-      [pg_model
+      [
+        pg_model
+        , pg_convert
+        , xfutils
       ]},
     {env, [
-      {debug_convert_config, false}
+      {debug, false}
     ]},
     {modules, []},
 

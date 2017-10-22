@@ -13,6 +13,7 @@
 %%-include("include/type_up_protocol.hrl").
 -author("simon").
 -behavior(pg_model).
+-behavior(pg_convert).
 -behaviour(pg_protocol).
 
 %% API
@@ -166,11 +167,11 @@ convert_test() ->
   ProtocolResult = pg_model:set(?MODULE, Protocol,
     [{version, <<"5.0.0.3.3">>}, {encoding, <<"GBK">>}]),
   lager:start(),
-  ?assertEqual(ProtocolResult, pg_protocol:convert(?MODULE, [Protocol, Protocol], list_copy)),
+  ?assertEqual(ProtocolResult, pg_convert:convert(?MODULE, [Protocol, Protocol], list_copy)),
 
   ProtocolResult2 = pg_model:set(?MODULE, Protocol, [{version, <<"5.0.0.3.3">>}]),
-  ?assertEqual(ProtocolResult2, pg_protocol:convert(?MODULE, Protocol)),
-  ?assertEqual(ProtocolResult2, pg_protocol:convert(?MODULE, Protocol, default)),
-  ?assertEqual(ProtocolResult2, pg_protocol:convert(?MODULE, [Protocol])),
+  ?assertEqual(ProtocolResult2, pg_convert:convert(?MODULE, Protocol)),
+  ?assertEqual(ProtocolResult2, pg_convert:convert(?MODULE, Protocol, default)),
+  ?assertEqual(ProtocolResult2, pg_convert:convert(?MODULE, [Protocol])),
   ok.
 
