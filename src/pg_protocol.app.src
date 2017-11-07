@@ -6,12 +6,6 @@
       [kernel,
         stdlib
       ]},
-    {included_applications,
-      [
-        pg_model
-        , pg_convert
-        , xfutils
-      ]},
     {env, [
       {debug, false}
     ]},

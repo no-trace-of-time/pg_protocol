@@ -12,9 +12,8 @@
 %%-include("include/type_binaries.hrl").
 %%-include("include/type_up_protocol.hrl").
 -author("simon").
--behavior(pg_model).
 -behavior(pg_convert).
--behaviour(pg_protocol).
+%%-behaviour(pg_protocol).
 
 %% API
 %% callbacks of pg_protocol
@@ -129,24 +128,34 @@ convert_config() ->
   [
     {list_copy,
       [
-        {?TXN,
+        {to, ?TXN},
+        {from,
           [
-            {version, {fun t1/1, [version]}}
-          ]
-        },
-        {?TXN,
-          [
-            {encoding, {fun t2/0, []}}
+            {?TXN,
+              [
+                {version, {fun t1/1, [version]}}
+              ]
+            },
+            {?TXN,
+              [
+                {encoding, {fun t2/0, []}}
 
+              ]
+            }
           ]
         }
       ]
     },
     {default,
       [
-        {?TXN,
+        {to, ?TXN},
+        {from,
           [
-            {version, {fun t1/1, [version]}}
+            {?TXN,
+              [
+                {version, {fun t1/1, [version]}}
+              ]
+            }
           ]
         }
       ]
